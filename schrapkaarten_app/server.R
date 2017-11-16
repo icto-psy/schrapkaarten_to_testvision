@@ -52,7 +52,7 @@ shinyServer(function(input, output) {
    # Put everything into a data frame.
    
    testvision_data <-
-     data.frame(stud_nbr, test_id, productieCode, exam_date , antwoorden)
+     data.frame(stud_nbr, test_id, productieCode, exam_date , answers)
    
    return(testvision_data)
  }
