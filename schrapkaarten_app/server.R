@@ -91,7 +91,7 @@ shinyServer(function(input, output) {
   
   output$downloadData <- downloadHandler(
     filename = function() { 
-      paste(input$teleform_data,'.TXT', sep='') 
+      paste(input$teleform_data,"_output.txt", sep='') 
     },
     content = function(file) {
       write.table(reactive_output$df, file, row.names = FALSE, col.names = FALSE, sep = ",", na = "NA",quote = TRUE)
