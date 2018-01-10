@@ -9,7 +9,7 @@ shinyServer(function(input, output) {
   
   # Function to convert the files -----
   
-  schrapkaart2Testvision <- function(teleform_data, exam_date, test_id, omrekentabel) {
+  schrapkaart2Testvision <- function(teleform_data, exam_date, test_id, omrekentabel, open_questions) {
    
    # Extract student number from input.
    
@@ -23,7 +23,7 @@ shinyServer(function(input, output) {
    
    # Test ID. 
    
-   test_id <- rep(test_id, length(stud_nbr))
+   test_id <- rep(as.character(test_id), length(stud_nbr))
    
    # Production Code.
    
@@ -48,13 +48,20 @@ shinyServer(function(input, output) {
    
    answers <- answers[, is_not_NA]
    
+   # Append dummy text for open questions if necessary.
    
-   # Put everything into a data frame.
-   
-   testvision_data <-
-     data.frame(stud_nbr, test_id, productieCode, exam_date , answers)
-   
+   if(open_questions > 0){
+     open_answer_dummies <- matrix("Zie papieren afname.", nrow = dim(answers)[1],ncol = open_questions)
+     
+     testvision_data <-
+       data.frame(stud_nbr, test_id, productieCode, exam_date , answers,open_answer_dummies)
+   } else{
+     testvision_data <-
+       data.frame(stud_nbr, test_id, productieCode, exam_date , answers)
+   }
+  
    return(testvision_data)
+   
  }
   
    
@@ -79,7 +86,7 @@ shinyServer(function(input, output) {
     
     # Transform the input.
     
-    result <- schrapkaart2Testvision(data,input$exam_date,test_id = input$test_id, omrekentabel = omrekentabel)
+    result <- schrapkaart2Testvision(data,input$exam_date,test_id = input$test_id, omrekentabel = omrekentabel, open_questions = input$num_open_questions)
     
     # Store result in reactive container to pass to download handler
     reactive_output$df <<- result
@@ -91,10 +98,10 @@ shinyServer(function(input, output) {
   
   output$downloadData <- downloadHandler(
     filename = function() { 
-      paste(input$teleform_data,"_output.txt", sep='') 
+      paste0(input$teleform_data,"_output.txt") 
     },
     content = function(file) {
-      write.table(reactive_output$df, file, row.names = FALSE, col.names = FALSE, sep = ",", na = "NA",quote = TRUE)
+      write.table(reactive_output$df, file, row.names = FALSE, col.names = FALSE, sep = ",", na = " ",quote = TRUE)
     }
   )
   

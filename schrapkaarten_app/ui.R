@@ -19,6 +19,8 @@ dashboardPage(
                          "3000-01-01", "dd-mm-yyyy", "month", 1),
                numericInput("test_id", "Test ID",0,
                             0, 99999, 1),
+             numericInput("num_open_questions", "Open questions to append", 0,
+                          0, 10, 1),
              downloadButton("downloadData", "Download Testvision file")
              ),
     fluidRow(align = "center",
