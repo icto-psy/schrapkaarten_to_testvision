@@ -64,8 +64,73 @@ shinyServer(function(input, output) {
    
  }
   
-   
-  
+
+  observeEvent(input$check_wrong_answers,{
+    
+    # If there is no data, show a dialogue stating this.
+    
+    if(is.null(input$teleform_data)){
+      showModal(modalDialog("Please load a data file.", title = "Easy there.", footer = modalButton("Dismiss"),
+                  size = c("s"), easyClose = FALSE, fade = TRUE))
+    } else{
+      # Load the data
+      data <- reactive_output$df
+        
+      # Extract the answers minus open questions (if any)
+      answers <- 
+        data[, 5:(dim(data)[2] - input$num_open_questions)]
+      
+      # Check where the wrong answers are
+      
+      rows_with_impossible_data <-
+        which(answers > input$num_answ_alternatives, arr.ind = TRUE)[, 1]
+      
+      # If there are wrong answers, show a dialogue with the student nunmbers
+      
+      if (length(rows_with_impossible_data) > 0) {
+        # Extract student numbers
+        students_with_bad_data <- data[rows_with_impossible_data, 1]
+        
+        # Show modal dialog
+        showModal(
+          modalDialog(
+            verbatimTextOutput("modal_dialogue") ,
+            title = "Uh Oh",
+            footer = modalButton("Dismiss"),
+            size = c("m"),
+            easyClose = FALSE,
+            fade = TRUE
+          )
+        )
+        # Paste all the student numbers and show dialogue.
+        output$modal_dialogue <- renderText({
+          c(
+            "The following students seem to have impossible MC answers:\n",
+            paste(
+              students_with_bad_data,
+              sep = "\n",
+              collapse = "\n"
+            ),
+            "\n Please fix the impossible values in the input file and try again."
+          )
+        })
+      } else{
+        showModal(
+          modalDialog(
+            "No problems found.",
+            title = "Easy there.",
+            footer = modalButton("Dismiss"),
+            size = c("s"),
+            easyClose = FALSE,
+            fade = TRUE
+          )
+        )
+      }
+    }
+     
+      }
+     
+  )
   
   output$contents <- renderTable(colnames = FALSE,{
     
@@ -101,7 +166,7 @@ shinyServer(function(input, output) {
       paste0(input$teleform_data,"_output.txt") 
     },
     content = function(file) {
-      write.table(reactive_output$df, file, row.names = FALSE, col.names = FALSE, sep = ",", na = " ",quote = TRUE)
+      write.table(reactive_output$df, file, row.names = FALSE, col.names = FALSE, sep = ",", na = " ", quote = TRUE)
     }
   )
   
