@@ -105,7 +105,7 @@ shinyServer(function(input, output) {
         # Paste all the student numbers and show dialogue.
         output$modal_dialogue <- renderText({
           c(
-            "The following students seem to have impossible MC answers:\n",
+            "The following students seem to have MC answers higher than the max possible:\n",
             paste(
               students_with_bad_data,
               sep = "\n",
