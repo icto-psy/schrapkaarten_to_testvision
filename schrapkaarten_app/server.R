@@ -1,7 +1,9 @@
 library(shiny)
 library(stringr)
+library(tibble)
+library(DT)
 
-shinyServer(function(input, output) {
+shinyServer(function(input, output, session) {
   
   # Container to pass result to download handler.
   
@@ -9,7 +11,7 @@ shinyServer(function(input, output) {
   
   # Function to convert the files -----
   
-  schrapkaart2Testvision <- function(teleform_data, exam_date, test_id, omrekentabel, open_questions) {
+  schrapkaart2Testvision <- function(teleform_data, exam_date, test_id, omrekentabel, pos_open_questions) {
    
    # Extract student number from input.
    
@@ -41,6 +43,8 @@ shinyServer(function(input, output) {
    # Extracting the answers. 
    
    answers <- teleform_data[, 3:dim(teleform_data)[2]]
+   
+   names(answers) <- paste0("MC",1:ncol(answers))
   
    ## Cut off all columns that are completely NA.
    
@@ -48,92 +52,63 @@ shinyServer(function(input, output) {
    
    answers <- answers[, is_not_NA]
    
-   # Append dummy text for open questions if necessary.
+   # Replace NA with spaces 
+   answers[is.na(answers) | answers == "NA"] <- " "
+  
+   # Original number of MC answers
+   no_of_mc_answers <- ncol(answers)
    
-   if(open_questions > 0){
-     open_answer_dummies <- matrix("Zie papieren afname.", nrow = dim(answers)[1],ncol = open_questions)
-     
-     testvision_data <-
-       data.frame(stud_nbr, test_id, productieCode, exam_date , answers,open_answer_dummies)
+  # Add dummy text for open questions
+   
+   if(pos_open_questions != ""){
+     # split the comma delimited values, clean up spaces etc.
+    positions <- str_split(pos_open_questions,",",simplify = TRUE)
+    
+    no_open_questions <- length(positions)
+    
+    # Add columns at the desired positions
+      for(i in 1:no_open_questions) {
+        if(as.numeric(positions[i]) <= no_of_mc_answers){
+          answers <- answers %>% add_column(!!paste0("Open",i) := "Zie papieren afname.",.before = paste0("MC", positions[i]))
+        }
+        if(as.numeric(positions[i]) > no_of_mc_answers){
+          answers <- answers %>% add_column(!!paste0("Open",i) := "Zie papieren afname.",.after = paste0("MC",  no_of_mc_answers))
+        }
+      }
+    testvision_data <-
+      data.frame(stud_nbr, test_id, productieCode, exam_date , answers)
    } else{
      testvision_data <-
        data.frame(stud_nbr, test_id, productieCode, exam_date , answers)
    }
   
+  
    return(testvision_data)
    
  }
   
-
-  observeEvent(input$check_wrong_answers,{
-    
-    # If there is no data, show a dialogue stating this.
-    
-    if(is.null(input$teleform_data)){
-      showModal(modalDialog("Please load a data file.", title = "Easy there.", footer = modalButton("Dismiss"),
-                  size = c("s"), easyClose = FALSE, fade = TRUE))
-    } else{
-      # Load the data
-      data <- reactive_output$df
-        
-      # Extract the answers minus open questions (if any)
-      answers <- 
-        data[, 5:(dim(data)[2] - input$num_open_questions)]
-      
-      # Check where the wrong answers are
-      
-      rows_with_impossible_data <-
-        which(answers > input$num_answ_alternatives, arr.ind = TRUE)[, 1]
-      
-      # If there are wrong answers, show a dialogue with the student nunmbers
-      
-      if (length(rows_with_impossible_data) > 0) {
-        # Extract student numbers
-        students_with_bad_data <- data[rows_with_impossible_data, 1]
-        
-        # Show modal dialog
-        showModal(
-          modalDialog(
-            verbatimTextOutput("modal_dialogue") ,
-            title = "Uh Oh",
-            footer = modalButton("Dismiss"),
-            size = c("m"),
-            easyClose = FALSE,
-            fade = TRUE
-          )
-        )
-        # Paste all the student numbers and show dialogue.
-        output$modal_dialogue <- renderText({
-          c(
-            "The following students seem to have MC answers higher than the max possible:\n",
-            paste(
-              students_with_bad_data,
-              sep = "\n",
-              collapse = "\n"
-            ),
-            "\n Please fix the impossible values in the input file and try again."
-          )
-        })
-      } else{
-        showModal(
-          modalDialog(
-            "No problems found.",
-            title = "Easy there.",
-            footer = modalButton("Dismiss"),
-            size = c("s"),
-            easyClose = FALSE,
-            fade = TRUE
-          )
-        )
-      }
+ 
+  # Validation function for the open questions input bar 
+  open_question_checker <- function(open_question_positions) {
+    if (open_question_positions == "") {
+      return(TRUE)
     }
-     
+    if (grepl("[^0-9,]", open_question_positions)) {
+      return(FALSE)
+    }
+    if (grepl("[0-9]", open_question_positions)) {
+      if (all(str_split(open_question_positions, ",", simplify = TRUE) != "")) {
+        return(TRUE)
       }
-     
-  )
+    } else
+      return(FALSE)
+  }
   
-  output$contents <- renderTable(colnames = FALSE,{
-    
+  # Output preview table ----
+
+  
+  output$contents <- renderDT({
+ 
     # Store the uploaded file object
     inFile <- input$teleform_data
     
@@ -149,14 +124,34 @@ shinyServer(function(input, output) {
     
     omrekentabel <- readRDS("omrekentabel.RDS")
     
+    # Validate the open questions input
+    validate(
+      need(open_question_checker(input$text_open_questions_insertion), "Please enter the positions of the open questions in a valid format"))
     # Transform the input.
     
-    result <- schrapkaart2Testvision(data,input$exam_date,test_id = input$test_id, omrekentabel = omrekentabel, open_questions = input$num_open_questions)
+    result <- schrapkaart2Testvision(data,input$exam_date,test_id = input$test_id, omrekentabel = omrekentabel, pos_open_questions = input$text_open_questions_insertion)
     
     # Store result in reactive container to pass to download handler
     reactive_output$df <<- result
     # Display preview
-    result
+    datatable(result,
+              class = "compact",
+              options = list(dom = 'lfrtip', scrollY = 400, scrollX = 600, lengthMenu = list(c(100,-1), c(100,"All"))), editable = TRUE) %>% 
+      formatStyle(grep("MC",names(result)),
+                  backgroundColor = styleEqual(c((input$num_answ_alternatives + 1):50),
+                                               rep('red', 50-input$num_answ_alternatives)))
+  })
+  
+  table = dataTableProxy('contents')
+  
+  observeEvent(input$contents_cell_edit, {
+    info = input$contents_cell_edit
+    str(info)
+    i = info$row
+    j = info$col
+    v = info$value
+    reactive_output$df[i, j] <<- as.character(v)
+    replaceData(table, reactive_output$df, resetPaging = FALSE)# important
   })
   
   # Download handler -----
