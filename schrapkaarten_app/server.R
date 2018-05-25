@@ -48,12 +48,35 @@ shinyServer(function(input, output, session) {
   
    ## Cut off all columns that are completely NA.
    
-   is_not_NA <- apply(answers,2,function(x) !(sum(is.na(x)) == length(x)))
+   is_NA <- apply(answers,2,function(x) (sum(is.na(x)) == length(x)))
    
-   answers <- answers[, is_not_NA]
+   if(any(is_NA == TRUE)) {
+     # Check for open questions in the middle! 
+     
+     na_col_numbers <- which(is_NA)
+     
+     # Remove last NA row if it exists.
+     if(dim(answers)[2] %in% na_col_numbers){
+       na_col_numbers <- na_col_numbers[-which(na_col_numbers == dim(answers)[2])]
+     }
+     
+     possible_open_question <- as.logical()
+     # Check if any of the columns  that are entirely NA are followed by a column that is not entirely NA. 
+     # This should ensure that any open question column that is followed by a MC column is flagged as a possible open question. 
+     for(i in seq_along(na_col_numbers)){possible_open_question[i] <- any(is_NA[(na_col_numbers[i]+1):length(is_NA)] == FALSE, na.rm = TRUE)}
+     
+     possible_open_question <- na_col_numbers[possible_open_question]
+     answers[ , possible_open_question] <- "Open question."
+     
+     is_not_NA <- apply(answers,2,function(x) !(sum(is.na(x)) == length(x)))
+     # Remove all columns that consist purely out of NA
+     
+     answers <- answers[, is_not_NA]
+     
+     # Replace NA with spaces 
+     answers[is.na(answers) | answers == "NA"] <- " "
+   }
    
-   # Replace NA with spaces 
-   answers[is.na(answers) | answers == "NA"] <- " "
   
    # Original number of MC answers
    no_of_mc_answers <- ncol(answers)
@@ -69,10 +92,10 @@ shinyServer(function(input, output, session) {
     # Add columns at the desired positions
       for(i in 1:no_open_questions) {
         if(as.numeric(positions[i]) <= no_of_mc_answers){
-          answers <- answers %>% add_column(!!paste0("Open",i) := "Zie papieren afname.",.before = paste0("MC", positions[i]))
+          answers <- answers %>% add_column(!!paste0("Open",i) := "Open question! Answer was given on paper.",.before = paste0("MC", positions[i]))
         }
         if(as.numeric(positions[i]) > no_of_mc_answers){
-          answers <- answers %>% add_column(!!paste0("Open",i) := "Zie papieren afname.",.after = paste0("MC",  no_of_mc_answers))
+          answers <- answers %>% add_column(!!paste0("Open",i) := "Open question! Answer was given on paper.",.after = paste0("MC",  no_of_mc_answers))
         }
       }
     testvision_data <-
