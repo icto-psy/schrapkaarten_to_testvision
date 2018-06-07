@@ -66,7 +66,7 @@ shinyServer(function(input, output, session) {
      for(i in seq_along(na_col_numbers)){possible_open_question[i] <- any(is_NA[(na_col_numbers[i]+1):length(is_NA)] == FALSE, na.rm = TRUE)}
      
      possible_open_question <- na_col_numbers[possible_open_question]
-     answers[ , possible_open_question] <- "Open question."
+     answers[ , possible_open_question] <- NA
      
      is_not_NA <- apply(answers,2,function(x) !(sum(is.na(x)) == length(x)))
      # Remove all columns that consist purely out of NA
@@ -92,10 +92,10 @@ shinyServer(function(input, output, session) {
     # Add columns at the desired positions
       for(i in 1:no_open_questions) {
         if(as.numeric(positions[i]) <= no_of_mc_answers){
-          answers <- answers %>% add_column(!!paste0("Open",i) := "Open question! Answer was given on paper.",.before = paste0("MC", positions[i]))
+          answers <- answers %>% add_column(!!paste0("Open",i) := NA,.before = paste0("MC", positions[i]))
         }
         if(as.numeric(positions[i]) > no_of_mc_answers){
-          answers <- answers %>% add_column(!!paste0("Open",i) := "Open question! Answer was given on paper.",.after = paste0("MC",  no_of_mc_answers))
+          answers <- answers %>% add_column(!!paste0("Open",i) := NA,.after = paste0("MC",  no_of_mc_answers))
         }
       }
     testvision_data <-
